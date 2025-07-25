@@ -12,7 +12,7 @@ class VideoProcessor:
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) # was reducing FPS for processing speed and stability, now that does not help
         self.display_preview = display_preview
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        # Video ooutput setup
+        # Video output setup
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(output_path, fourcc, self.fps, (self.width, self.height))
         # Initialize motion detection variables
