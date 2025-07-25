@@ -20,7 +20,7 @@ class VideoProcessor:
         # 运动检测相关变量
         self.prev_gray = None
         self.mhi = np.zeros((self.height, self.width), dtype=np.float32)
-        self.tau = 15  # MHI衰减时间（秒）
+        self.tau = 15 # MHI衰减时间（秒）
         
     def process_video(self):
         """主处理循环"""
