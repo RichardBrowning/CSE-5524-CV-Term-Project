@@ -30,7 +30,6 @@ class VideoProcessor:
                 break
             
             processed_frame = self._detect_motion(frame)
-            
             # write to output
             self.out.write(processed_frame)
             # preview 

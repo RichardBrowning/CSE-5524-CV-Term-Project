@@ -212,22 +212,20 @@ class VideoProcessor:
     def __init__(self, input_path, output_path, display_preview=True):
         self.cap = cv2.VideoCapture(input_path)
         if not self.cap.isOpened():
-            raise ValueError(f"无法打开视频文件: {input_path}")
-            
+            raise ValueError(f"Error Opening the file: {input_path}")
+
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.display_preview = display_preview
         
         # video output setup
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(output_path, fourcc, self.fps, (self.width, self.height))
         if not self.out.isOpened():
-            raise ValueError(f"无法创建输出视频: {output_path}")
+            raise ValueError(f"Error creating the output video: {output_path}")
 
-        cv2.namedWindow('Preview', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('Preview', 1280, 720)
-        self.display_preview = display_preview
         
         # Initialize motion detection variables
         self.prev_gray = None
@@ -242,7 +240,6 @@ class VideoProcessor:
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=16, detectShadows=False)
         
     def process_video(self):
-        """主处理循环 - 修复版本"""
         progress = tqdm(total=self.total_frames, desc="Processing Video")
         
         while self.cap.isOpened():
@@ -303,10 +300,16 @@ class VideoProcessor:
             fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
 
             # Update motion history image (MHI)
-            if self.prev_gray is not None:
-                frame_diff = cv2.absdiff(gray, self.prev_gray)
-                _, motion_mask = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
-                self.mhi = np.where(motion_mask == 255, self.tau, np.maximum(self.mhi - 1, 0))
+            if self.prev_gray is None:
+                self.prev_gray = gray
+                return frame
+                # frame_diff = cv2.absdiff(gray, self.prev_gray)
+                # _, motion_mask = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
+                # self.mhi = np.where(motion_mask == 255, self.tau, np.maximum(self.mhi - 1, 0))
+
+            frame_diff = cv2.absdiff(gray, self.prev_gray)
+            _, motion_mask = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
+            self.mhi = np.where(motion_mask == 255, self.tau, np.maximum(self.mhi - 1, 0))
 
             # background subtraction mask
             mhi_mask = (self.mhi > 0).astype(np.uint8) * 255
