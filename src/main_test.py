@@ -302,7 +302,7 @@ class VideoProcessor:
             # Update motion history image (MHI)
             if self.prev_gray is None:
                 self.prev_gray = gray
-                return frame
+                return []
                 
             frame_diff = cv2.absdiff(gray, self.prev_gray)
             _, motion_mask = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)

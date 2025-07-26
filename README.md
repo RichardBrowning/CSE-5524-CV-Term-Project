@@ -46,7 +46,9 @@ This project aims to detect and track pedestrians and vehicles in gameplay video
 
   In this version, We only computes grayscale difference between frames and use them to generates `motion_mask` (with `cv2.createBackgroundSubtractorMOG2`). At each frame, the program updates MHI directly with `motion_mask`. Finally, it extracts contours from MHI as motion regions
   
-  With this approach, it is clear that the system is sensitive to lighting changes (false positives), and cannot distinguish static new objects from actual motion, or objects divided by occlusion.
+  With this approach, it is clear that the system is sensitive to lighting changes (false positives), and cannot distinguish static objects from actual motion, or objects divided by occlusion. 
+
+  Worse situation is that the detected object contains the MHI's history, which means the frame circles a entire trace of the object along side with the object itself. Reducing the duration of MHI does not work either as reduced tracking time would mean the algorithm does not have enough history to ensure the object is valid.
 
   ![Version 2 Results](./images/HMI1.png)
   ![Version 1 Results](./images/HMI2.png)
@@ -62,9 +64,10 @@ This project aims to detect and track pedestrians and vehicles in gameplay video
     ![Version 2 Results](./images/rev1_3.png)
     ![Version 2 Results](./images/rev1_3_1.png)
 
-  However, it is clearly witnessed that there seams to be false detection, and possibly overlaid components 
-### 
-
+  It can be witnessed that the second version does not include the entire MHI history in tracking. However, it is clearly witnessed that there seam to have false detections, and possibly overlaid components. In addition, the lighting condition still makes it hard.
+### rev 2
+- **Improved with overlap detection.**
+  
 
 
 ## Conclusion
