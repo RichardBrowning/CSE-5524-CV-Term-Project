@@ -42,7 +42,7 @@ class VideoProcessor:
                 break
             
             # NEW: PREPROCESSING FRAME - convert to greyscale and apply gaussian blur
-            frame_copy = frame.copy()
+            # frame_copy = frame.copy()
             """cv2: cvtColor (
                 frame -> original frame
                 cv2.COLOR_BGR2GRAY -> convert to grayscale
@@ -74,7 +74,14 @@ class VideoProcessor:
         cv2.destroyAllWindows()
     
     def _detect_motion(self, frame, gray):
+
+        foreground_mask = self.bg_subtractor.apply(gray)
         
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        # apply morphological (形态学) operations to reduce noise: 1. open op to remove small noise, 2. close op to fill small holes
+        foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, kernel)
+        foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_CLOSE, kernel)
+
         # first frame exception
         if self.prev_gray is None:
             self.prev_gray = gray
@@ -84,12 +91,12 @@ class VideoProcessor:
         frame_diff = cv2.absdiff(gray, self.prev_gray)
         # draw motion mask according to the difference
         _, motion_mask = cv2.threshold(frame_diff, 25, 1, cv2.THRESH_BINARY)
-        
         # - renew MHI
         self.mhi = np.where(motion_mask == 1, self.tau, np.maximum(self.mhi - 1, 0))
         
-        # get area of mothion from MHI
+        # get area of motion from MHI
         mhi_visual = self._visualize_mhi()
+        # NOTE: TODO: try returning this
         contours = self._extract_motion_regions()
         
         # draw MHI on the original frame
