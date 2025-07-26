@@ -56,8 +56,17 @@ class VideoProcessor:
             gray = cv2.GaussianBlur(gray, (5, 5), 0)
             
             # MOTION DETECTION
-            
-            processed_frame = self._detect_motion(frame, gray)
+            # get area of motion from MHI
+            mhi_visual = self._visualize_mhi()
+            processed_frame = frame.copy()
+            # 这是MHI（0.3的opacity）叠加到原始帧（0.7的opacity）上，第四个参数0代表没有偏移，processed_frame是输出图像
+            cv2.addWeighted(processed_frame, 0.7, mhi_visual, 0.3, 0, processed_frame)
+            detected_objects = self._detect_motion(frame, gray)
+            # draw detected objects on the frame
+            for (x, y, w, h) in detected_objects:
+                cv2.rectangle(processed_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.putText(processed_frame, 'Motion', (x, y-10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             # write to output
             self.out.write(processed_frame)
             # preview 
@@ -74,56 +83,77 @@ class VideoProcessor:
         cv2.destroyAllWindows()
     
     def _detect_motion(self, frame, gray):
+        try:
+            foreground_mask = self.bg_subtractor.apply(gray)
+            
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            # apply morphological (形态学) operations to reduce noise: 1. open op to remove small noise, 2. close op to fill small holes
+            foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, kernel)
+            foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_CLOSE, kernel)
 
-        foreground_mask = self.bg_subtractor.apply(gray)
-        
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        # apply morphological (形态学) operations to reduce noise: 1. open op to remove small noise, 2. close op to fill small holes
-        foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, kernel)
-        foreground_mask = cv2.morphologyEx(foreground_mask, cv2.MORPH_CLOSE, kernel)
+            # first frame exception
+            if self.prev_gray is None:
+                self.prev_gray = gray
+                return []
+            
+            # absolute difference between current and previous frame
+            frame_diff = cv2.absdiff(gray, self.prev_gray)
+            # draw motion mask according to the difference
+            _, motion_mask = cv2.threshold(frame_diff, 25, 1, cv2.THRESH_BINARY)
+            # NEW: ADD BACKGROUND SUBTRACTION MASK
+            _, bg_mask = cv2.threshold(foreground_mask, 127, 1, cv2.THRESH_BINARY)
+            # NEW: combine motion mask and background mask
+            combined_mask = cv2.bitwise_and(motion_mask, bg_mask)
+            
+            # - renew MHI
+            self.mhi = np.where(combined_mask == 1, self.tau, np.maximum(self.mhi - 1, 0))
+            
+            # from MHI extract silhouettes of moving objects
+            mhi_mask = (self.mhi > 0).astype(np.uint8) * 255
+            final_mask = cv2.bitwise_and(mhi_mask, foreground_mask)
+            """
+            # get area of motion from MHI
+            mhi_visual = self._visualize_mhi()
+            """
+            # NOTE: TODO: try returning this instead of frame with overlays
+            # create binary mask from MHI
+            mhi_mask = (self.mhi > 0).astype(np.uint8) * 255
+            # combine MHI mask with foreground mask
+            final_mask = cv2.bitwise_and(mhi_mask, foreground_mask)
+            contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # NOTE: extract_motion_regions() returns contours in Sequence[MatLike], where MatLike is np.ndarray or cv2.Mat
 
-        # first frame exception
-        if self.prev_gray is None:
+            """
+            # draw MHI on the original frame
+            output_frame = frame.copy()
+            cv2.addWeighted(output_frame, 0.7, mhi_visual, 0.3, 0, output_frame)
+            """
+            # create detected motion regions/(objects?)
+            detected_objects = []
+            # draw detected motion regions
+            
+            for contour in contours:
+                if cv2.contourArea(contour) > 100:  # 过滤小噪点
+                    x, y, w, h = cv2.boundingRect(contour)
+                    detected_objects.append((x, y, w, h))
+                    """
+                    cv2.rectangle(output_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.putText(output_frame, 'Motion', (x, y-10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            
             self.prev_gray = gray
+            return output_frame
+            """
+            return detected_objects
+        except Exception as e:
+            print(f"Error during motion detection: {e}")
             return frame
-        
-        # absolute difference between current and previous frame
-        frame_diff = cv2.absdiff(gray, self.prev_gray)
-        # draw motion mask according to the difference
-        _, motion_mask = cv2.threshold(frame_diff, 25, 1, cv2.THRESH_BINARY)
-        # - renew MHI
-        self.mhi = np.where(motion_mask == 1, self.tau, np.maximum(self.mhi - 1, 0))
-        
-        # get area of motion from MHI
-        mhi_visual = self._visualize_mhi()
-        # NOTE: TODO: try returning this
-        contours = self._extract_motion_regions()
-        
-        # draw MHI on the original frame
-        output_frame = frame.copy()
-        cv2.addWeighted(output_frame, 0.7, mhi_visual, 0.3, 0, output_frame)
-
-        # draw detected motion regions
-        for contour in contours:
-            if cv2.contourArea(contour) > 100:  # 过滤小噪点
-                x, y, w, h = cv2.boundingRect(contour)
-                cv2.rectangle(output_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                cv2.putText(output_frame, 'Motion', (x, y-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        self.prev_gray = gray
-        return output_frame
     
     def _visualize_mhi(self):
         """Visualize MHI as a color image"""
         mhi_norm = cv2.normalize(self.mhi, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
         return cv2.cvtColor(mhi_norm, cv2.COLOR_GRAY2BGR)
     
-    def _extract_motion_regions(self):
-        """从MHI提取运动区域轮廓"""
-        mhi_mask = (self.mhi > 0).astype(np.uint8) * 255
-        contours, _ = cv2.findContours(mhi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        return contours
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Video motion detection processor')
