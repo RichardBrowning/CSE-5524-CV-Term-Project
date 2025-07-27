@@ -66,7 +66,26 @@ This project aims to detect and track pedestrians and vehicles in gameplay video
 
   It can be witnessed that the second version does not include the entire MHI history in tracking. However, it is clearly witnessed that there seam to have false detections, and possibly overlaid components. In addition, the lighting condition still makes it hard.
 ### rev 2
-- **Improved with overlap detection.**
+- **Improved with overlap detection**
+  ```
+  flowchart TD
+  A[检测到的矩形列表] --> B{矩形数量 < 2?}
+  B -- 是 --> C[直接返回原列表]
+  B -- 否 --> D[按面积从大到小排序]
+  D --> E[初始化移除集合]
+  E --> F[双重循环检查包含关系]
+  F --> G{矩形A完全包含矩形B?}
+  G -- 是 --> H[标记矩形B为待移除]
+  G -- 否 --> I[继续检查]
+  H --> J[构建新列表]
+  J --> K[返回过滤后列表]
+  ```
+  ![Overlap 1](./images/ol1.png)
+  ![Overlap 2](./images/ol2.png)
+- **K-mean clustering for false segmentation.**
+  To begin with, the mean shift algorithm is completely inappropriate as objects' colors are far from uniform.
+
+  So the only thing left is K-means clustering 
   
 
 
